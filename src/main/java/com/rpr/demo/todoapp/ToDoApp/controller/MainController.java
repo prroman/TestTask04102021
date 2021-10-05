@@ -5,6 +5,7 @@ import com.rpr.demo.todoapp.ToDoApp.model.Price;
 import com.rpr.demo.todoapp.ToDoApp.model.PriceResultCSV;
 import com.rpr.demo.todoapp.ToDoApp.repository.PriceRepository;
 import com.rpr.demo.todoapp.ToDoApp.service.PriceService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,6 +21,7 @@ public class MainController {
     private PriceRepository priceRepository;
     private PriceService priceService;
 
+    @Autowired
     public MainController(PriceRepository priceRepository, PriceService priceService) {
         this.priceRepository = priceRepository;
         this.priceService = priceService;
@@ -44,7 +46,7 @@ public class MainController {
     }
 
     @GetMapping("cryptocurrencies")
-    public List<Price> getLastPricePagebale(@RequestParam String name, @RequestParam int page, @RequestParam int size) {
+    public List<Price> getLastPricePagebale(@RequestParam String name, @RequestParam(required = false, defaultValue = "0") int page, @RequestParam(required = false, defaultValue = "10") int size) {
         if (name.equals("BTC") || name.equals("ETH") || name.equals("XRP")) {
             return priceService.getLastPricePagebale(name, page, size);
         } else {
@@ -54,18 +56,6 @@ public class MainController {
 
     @GetMapping("cryptocurrencies/csv")
     public void generatePriceListSummary(HttpServletResponse servletResponse) throws IOException {
-        List<String> uniqueCurrencies = priceRepository.findDistinctCurrencies();
-        List<PriceResultCSV> summary = new ArrayList<>();
-
-        for (int i =0; i < uniqueCurrencies.size(); i++) {
-            PriceResultCSV temp = new PriceResultCSV(uniqueCurrencies.get(i),
-                    priceService.getLastPriceMin(uniqueCurrencies.get(i)).getLprice(),
-                    priceService.getLastPriceMax(uniqueCurrencies.get(i)).getLprice());
-            summary.add(temp);
-        }
-
-        servletResponse.setContentType("text/csv");
-        servletResponse.addHeader("Content-Disposition","attachment; filename=\"priceListSummary.csv\"");
-        priceService.writeEmployeesToCsv(servletResponse.getWriter(), summary);
+        priceService.writePricesToCSV(servletResponse);
     }
 }

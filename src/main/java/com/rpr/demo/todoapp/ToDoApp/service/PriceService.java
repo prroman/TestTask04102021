@@ -5,6 +5,7 @@ import com.rpr.demo.todoapp.ToDoApp.model.PriceResultCSV;
 import com.rpr.demo.todoapp.ToDoApp.repository.PriceRepository;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -17,6 +18,8 @@ import org.springframework.http.converter.json.MappingJackson2HttpMessageConvert
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
@@ -29,6 +32,7 @@ public class PriceService {
     private MongoTemplate mongoTemplate;
     private PriceRepository priceRepository;
 
+    @Autowired
     public PriceService(MongoTemplate mongoTemplate, PriceRepository priceRepository) {
         this.mongoTemplate = mongoTemplate;
         this.priceRepository = priceRepository;
@@ -50,8 +54,7 @@ public class PriceService {
         query
                 .with(Sort.by(Sort.Direction.ASC, "lprice"))
                 .addCriteria(Criteria.where("curr1").is(currency_name));
-        Price price = mongoTemplate.findOne(query, Price.class);
-        return price;
+        return mongoTemplate.findOne(query, Price.class);
     }
 
     public Price getLastPriceMax(String currency_name) {
@@ -59,8 +62,7 @@ public class PriceService {
         query
                 .with(Sort.by(Sort.Direction.DESC, "lprice"))
                 .addCriteria(Criteria.where("curr1").is(currency_name));
-        Price price = mongoTemplate.findOne(query, Price.class);
-        return price;
+        return mongoTemplate.findOne(query, Price.class);
     }
 
     public List<Price> getLastPricePagebale(String name, int page, int size) {
@@ -70,13 +72,24 @@ public class PriceService {
                 .with(pageableRequest)
                 .with(Sort.by(Sort.Direction.ASC, "lprice"))
                 .addCriteria(Criteria.where("curr1").is(name));
-        List<Price> price = mongoTemplate.find(query, Price.class);
-        return price;
+        return mongoTemplate.find(query, Price.class);
     }
 
-    public void writeEmployeesToCsv(Writer writer, List<PriceResultCSV> priceSummary) throws IOException {
-        try (CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT)) {
-            for (PriceResultCSV price : priceSummary) {
+    public void writePricesToCSV(HttpServletResponse servletResponse) throws IOException {
+        List<String> uniqueCurrencies = priceRepository.findDistinctCurrencies();
+        List<PriceResultCSV> summary = new ArrayList<>();
+
+        for (String uniqueCurrency: uniqueCurrencies) {
+            PriceResultCSV temp = new PriceResultCSV(uniqueCurrency,
+                    getLastPriceMin(uniqueCurrency).getLprice(),
+                    getLastPriceMax(uniqueCurrency).getLprice());
+            summary.add(temp);
+        }
+        servletResponse.setContentType("text/csv");
+        servletResponse.addHeader("Content-Disposition","attachment; filename=\"priceListSummary.csv\"");
+
+        try (CSVPrinter csvPrinter = new CSVPrinter(servletResponse.getWriter(), CSVFormat.DEFAULT)) {
+            for (PriceResultCSV price : summary) {
                 csvPrinter.printRecord(price.getName(), price.getMinPrice(), price.getMaxPrice());
             }
         } catch (IOException e) {
